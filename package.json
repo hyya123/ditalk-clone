@@ -1,0 +1,13 @@
+{
+  "name": "ditalk-clone",
+  "version": "1.0.0",
+  "description": "一個類似 Wootalk 的匿名聊天網站",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  }
+}
