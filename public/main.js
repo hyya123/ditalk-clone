@@ -19,7 +19,7 @@ startBtn.addEventListener('click', () => {
     return;
   }
 
-  socket.emit('leave'); // 離開前一組
+  socket.emit('leave');
   socket.emit('start_pairing', { nickname });
   status.innerText = '等待配對中...';
   messages.innerHTML = '';
@@ -49,8 +49,8 @@ submitAnswer.addEventListener('click', () => {
   }
 });
 
-socket.on('question_matched', () => {
-  status.innerText = '賓果 🎉！開始聊天';
+socket.on('question_matched', ({ partnerNickname }) => {
+  status.innerText = `賓果 🎉！與 ${partnerNickname} 開始聊天`;
   chat.style.display = 'block';
 });
 
@@ -63,14 +63,10 @@ socket.on('question_failed', () => {
 sendBtn.addEventListener('click', () => {
   const text = messageInput.value.trim();
   if (text) {
-    const nickname = nicknameInput.value.trim() || '我'; // 如果沒有暱稱就顯示為「我」
-    
-    // 顯示自己的訊息
+    const nickname = nicknameInput.value.trim();
     const msgElem = document.createElement('div');
     msgElem.textContent = `${nickname}: ${text}`;
     messages.appendChild(msgElem);
-    messages.scrollTop = messages.scrollHeight;
-
     socket.emit('message', text);
     messageInput.value = '';
   }
