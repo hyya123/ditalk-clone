@@ -5,13 +5,16 @@ const nicknameInput = document.getElementById('nicknameInput');
 const status = document.getElementById('status');
 const questionSection = document.getElementById('question-section');
 const questionText = document.getElementById('question-text');
+const answerInput = document.getElementById('answerInput');
+const submitAnswer = document.getElementById('submitAnswer');
 const chat = document.getElementById('chat');
 const messages = document.getElementById('messages');
 const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
 
-let currentQuestions = [];
+let questions = [];
 let answers = [];
+let questionIndex = 0;
 
 startBtn.addEventListener('click', () => {
   const nickname = nicknameInput.value.trim();
@@ -22,57 +25,56 @@ startBtn.addEventListener('click', () => {
 
   socket.emit('leave');
   socket.emit('start_pairing', { nickname });
+
   status.innerText = '等待配對中...';
   messages.innerHTML = '';
   chat.style.display = 'none';
   questionSection.style.display = 'none';
 });
 
-socket.on('paired', (questions) => {
-  currentQuestions = questions;
-  answers = [];
-  showQuestion(0);
+socket.on('waiting', () => {
+  status.innerText = '等待配對中...';
 });
 
-function showQuestion(index) {
-  if (index >= currentQuestions.length) return;
-  questionText.innerHTML = `
-    <p>${currentQuestions[index]}</p>
-    <input type="text" id="answer-${index}" placeholder="請輸入答案">
-    <button onclick="submitAnswer(${index})">送出答案</button>
-  `;
-  questionSection.style.display = 'block';
+socket.on('paired', () => {
+  status.innerText = '配對成功，請回答問題...';
+});
+
+socket.on('ask_question', (qs) => {
+  questions = qs;
+  answers = [];
+  questionIndex = 0;
+  showNextQuestion();
+});
+
+function showNextQuestion() {
+  if (questionIndex < questions.length) {
+    questionText.innerText = questions[questionIndex];
+    answerInput.value = '';
+    questionSection.style.display = 'block';
+  } else {
+    // 全部回答完畢
+    questionSection.style.display = 'none';
+    socket.emit('answer_question', answers);
+    status.innerText = '等待對方回答中...';
+  }
 }
 
-window.submitAnswer = function (index) {
-  const input = document.getElementById(`answer-${index}`);
-  const answer = input.value.trim();
-  if (!answer) {
-    alert('請輸入答案');
-    return;
+submitAnswer.addEventListener('click', () => {
+  const answer = answerInput.value.trim();
+  if (answer) {
+    answers.push(answer);
+    questionIndex++;
+    showNextQuestion();
   }
-  answers[index] = answer;
-  if (index + 1 < currentQuestions.length) {
-    showQuestion(index + 1);
-  } else {
-    questionSection.style.display = 'none';
-    status.innerText = '等待對方回答中...';
-    socket.emit('answer_question', answers);
-  }
-};
+});
 
-socket.on('question_matched', (partnerAnswers) => {
-  status.innerText = '賓果 🎉！開始聊天';
+socket.on('question_matched', ({ partnerNickname, answers }) => {
+  status.innerText = `賓果 🎉！開始聊天\n你配對到「${partnerNickname}」`;
+
+  // 顯示雙方回答
+  messages.innerHTML = `<div style="color:gray; font-size: 0.9em;">對方回答：${answers.join(' / ')}</div>`;
   chat.style.display = 'block';
-
-  // 顯示雙方的回答
-  const answerSummary = document.createElement('div');
-  answerSummary.innerHTML = `
-    <p><strong>你的回答:</strong> ${answers.join(', ')}</p>
-    <p><strong>對方的回答:</strong> ${partnerAnswers.join(', ')}</p>
-    <hr>
-  `;
-  messages.appendChild(answerSummary);
 });
 
 socket.on('question_failed', () => {
@@ -85,7 +87,12 @@ sendBtn.addEventListener('click', () => {
   const text = messageInput.value.trim();
   if (text) {
     socket.emit('message', text);
+    const msgElem = document.createElement('div');
+    msgElem.textContent = `我: ${text}`;
+    msgElem.style.fontWeight = 'bold';
+    messages.appendChild(msgElem);
     messageInput.value = '';
+    messages.scrollTop = messages.scrollHeight;
   }
 });
 
