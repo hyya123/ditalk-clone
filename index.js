@@ -9,12 +9,13 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 多人排隊佇列
 const waitingUsers = [];
-const questions = [
+const chatLogs = []; // 🔒 儲存聊天紀錄（後台用）
+
+const QUESTIONS = [
   '喜歡什麼汽車？日系 或 美系',
-  '喜歡哪種飲料？可樂 或 果汁',
-  '喜歡貓還是狗？貓 或 狗'
+  '喜歡貓還是狗？',
+  '喜歡吃甜還是鹹？'
 ];
 
 io.on('connection', (socket) => {
@@ -26,47 +27,54 @@ io.on('connection', (socket) => {
   socket.on('start_pairing', ({ nickname }) => {
     socket.nickname = nickname;
     socket.answers = [];
-    socket.partner = null;
 
-    // 放入佇列並檢查配對
-    waitingUsers.push(socket);
-    tryPairing();
+    // 檢查是否有人在等
+    const partner = waitingUsers.find(s => s !== socket && !s.partner);
+
+    if (partner) {
+      // 成功配對
+      socket.partner = partner;
+      partner.partner = socket;
+
+      // 從等待區移除
+      const index = waitingUsers.indexOf(partner);
+      if (index !== -1) waitingUsers.splice(index, 1);
+
+      // 發送問題
+      socket.emit('paired');
+      partner.emit('paired');
+
+      socket.emit('ask_question', QUESTIONS);
+      partner.emit('ask_question', QUESTIONS);
+    } else {
+      // 加入等待
+      waitingUsers.push(socket);
+      socket.emit('waiting');
+    }
   });
-
-  function tryPairing() {
-    if (waitingUsers.length < 2) return;
-
-    const user1 = waitingUsers.shift();
-    const user2 = waitingUsers.shift();
-
-    user1.partner = user2;
-    user2.partner = user1;
-
-    user1.emit('paired', questions);
-    user2.emit('paired', questions);
-  }
 
   socket.on('answer_question', (answers) => {
     socket.answers = answers;
-
     const partner = socket.partner;
-    if (partner && partner.answers.length === questions.length) {
-      // 雙方都回答完畢，進行比較
-      const matched = answers.filter((ans, i) => ans === partner.answers[i]).length;
 
-      if (matched >= 2) {
-        socket.emit('question_matched', partner.answers);
-        partner.emit('question_matched', socket.answers);
+    if (partner && partner.answers.length) {
+      // 雙方都回答完了
+      const matchCount = answers.reduce((acc, ans, i) => {
+        return acc + (ans === partner.answers[i] ? 1 : 0);
+      }, 0);
+
+      if (matchCount >= 2) {
+        // ✅ 配對成功
+        socket.emit('question_matched', { partnerNickname: partner.nickname, answers: partner.answers });
+        partner.emit('question_matched', { partnerNickname: socket.nickname, answers: socket.answers });
       } else {
+        // ❌ 失敗
         socket.emit('question_failed');
         partner.emit('question_failed');
-
-        // 回到等待配對
         socket.partner = null;
         partner.partner = null;
         socket.answers = [];
         partner.answers = [];
-        waitingUsers.push(socket, partner);
       }
     }
   });
@@ -77,17 +85,26 @@ io.on('connection', (socket) => {
         from: socket.nickname || '匿名',
         text: msg
       });
+
+      // ✅ 儲存後台紀錄
+      chatLogs.push({
+        timestamp: new Date(),
+        from: socket.nickname,
+        to: socket.partner.nickname,
+        text: msg
+      });
     }
   });
 
   socket.on('disconnect', () => {
+    console.log('使用者離線:', socket.id);
     if (socket.partner) {
       socket.partner.emit('partner_left');
       socket.partner.partner = null;
-    } else {
-      const index = waitingUsers.indexOf(socket);
-      if (index !== -1) waitingUsers.splice(index, 1);
     }
+
+    const index = waitingUsers.indexOf(socket);
+    if (index !== -1) waitingUsers.splice(index, 1);
   });
 
   socket.on('leave', () => {
@@ -97,10 +114,18 @@ io.on('connection', (socket) => {
     }
     socket.partner = null;
     socket.answers = [];
+
+    const index = waitingUsers.indexOf(socket);
+    if (index !== -1) waitingUsers.splice(index, 1);
+  });
+
+  // ✅ 查看聊天紀錄（內部用途）
+  socket.on('admin_get_logs', () => {
+    socket.emit('admin_logs', chatLogs);
   });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`伺服器執行中 http://localhost:${PORT}`);
 });
