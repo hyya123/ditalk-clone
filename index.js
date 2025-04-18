@@ -10,59 +10,73 @@ const io = new Server(server);
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-let waitingUser = null;
+let waitingRoom = []; // 等待中的使用者
+let rooms = {};       // 配對成功的三人聊天室
 
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
-  if (waitingUser) {
-    // Pair the two users
-    const partner = waitingUser;
-    waitingUser = null;
-    socket.partner = partner;
-    partner.partner = socket;
+  waitingRoom.push(socket);
 
-    socket.emit('paired');
-    partner.emit('paired');
+  if (waitingRoom.length >= 3) {
+    const roomId = `room-${Date.now()}`;
+    const members = waitingRoom.splice(0, 3);
+    rooms[roomId] = members;
+
+    members.forEach(s => {
+      s.join(roomId);
+      s.roomId = roomId;
+      s.emit('group_paired', { roomId });
+    });
   } else {
-    // No user waiting, put this one in the queue
-    waitingUser = socket;
     socket.emit('waiting');
   }
 
   socket.on('message', (msg) => {
-    if (socket.partner) {
-      socket.partner.emit('message', msg);
+    if (socket.roomId) {
+      io.to(socket.roomId).emit('message', { from: socket.id, text: msg });
     }
   });
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
-    if (socket.partner) {
-      socket.partner.emit('partner_left');
-      socket.partner.partner = null;
-    } else if (waitingUser === socket) {
-      waitingUser = null;
+
+    // 從等待區移除
+    waitingRoom = waitingRoom.filter(s => s !== socket);
+
+    if (socket.roomId) {
+      const room = rooms[socket.roomId];
+      if (room) {
+        room.forEach(s => {
+          if (s !== socket) {
+            s.emit('partner_left');
+            s.leave(socket.roomId);
+            s.roomId = null;
+          }
+        });
+        delete rooms[socket.roomId];
+      }
     }
   });
 
   socket.on('leave', () => {
-    if (socket.partner) {
-      socket.partner.emit('partner_left');
-      socket.partner.partner = null;
-    }
-    socket.partner = null;
-    if (!waitingUser) {
-      waitingUser = socket;
-      socket.emit('waiting');
+    if (socket.roomId) {
+      const room = rooms[socket.roomId];
+      if (room) {
+        room.forEach(s => {
+          if (s !== socket) {
+            s.emit('partner_left');
+            s.leave(socket.roomId);
+            s.roomId = null;
+          }
+        });
+        delete rooms[socket.roomId];
+      }
+      socket.roomId = null;
     } else {
-      const partner = waitingUser;
-      waitingUser = null;
-      socket.partner = partner;
-      partner.partner = socket;
-      socket.emit('paired');
-      partner.emit('paired');
+      waitingRoom = waitingRoom.filter(s => s !== socket);
     }
+    socket.emit('waiting');
   });
 });
 
