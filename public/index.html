@@ -5,16 +5,71 @@
   <title>DiTalk 配對聊天</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
-    #chat { display: none; border: 1px solid #ccc; padding: 10px; }
-    #question-section { display: none; }
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #fff5f8;
+      color: #333;
+      text-align: center;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #ff6699;
+      font-size: 28px;
+    }
+
+    input, button {
+      padding: 10px;
+      margin: 8px;
+      border: 2px solid #ff99cc;
+      border-radius: 12px;
+      font-size: 16px;
+    }
+
+    button {
+      background-color: #ffccdd;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #ff99cc;
+    }
+
+    #chat {
+      display: none;
+      border: 2px solid #ff99cc;
+      background-color: #fff0f5;
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 12px;
+    }
+
+    #messages {
+      background-color: #fff;
+      border: 1px solid #ccc;
+      height: 200px;
+      overflow-y: scroll;
+      padding: 10px;
+      border-radius: 8px;
+      text-align: left;
+    }
+
+    #question-section {
+      display: none;
+      margin-top: 10px;
+    }
+
+    #status {
+      margin-top: 10px;
+      font-weight: bold;
+      color: #cc3366;
+    }
   </style>
 </head>
 <body>
   <h1>配對聊天系統</h1>
 
-  <!-- 🆕 新增暱稱輸入欄位 -->
   <input type="text" id="nicknameInput" placeholder="請輸入暱稱">
-  <!-- 原本的開始配對按鈕 -->
   <button id="startBtn">開始配對</button>
 
   <div id="status">尚未配對</div>
@@ -27,7 +82,7 @@
 
   <div id="chat">
     <h3>聊天視窗</h3>
-    <div id="messages" style="height: 200px; overflow-y: scroll;"></div>
+    <div id="messages"></div>
     <input id="messageInput" placeholder="輸入訊息">
     <button id="sendBtn">送出</button>
   </div>
