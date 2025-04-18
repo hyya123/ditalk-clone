@@ -15,10 +15,12 @@ const question = '喜歡什麼汽車？日系 或是 美系';
 io.on('connection', (socket) => {
   console.log('使用者連線:', socket.id);
   socket.partner = null;
-  socket.role = null;
+  socket.nickname = '';
   socket.answer = null;
 
-  function tryPairing() {
+  socket.on('start_pairing', ({ nickname }) => {
+    socket.nickname = nickname;
+
     if (waitingUser && waitingUser !== socket) {
       const partner = waitingUser;
       waitingUser = null;
@@ -26,11 +28,8 @@ io.on('connection', (socket) => {
       socket.partner = partner;
       partner.partner = socket;
 
-      socket.role = 'A';
-      partner.role = 'B';
-
-      socket.emit('paired', { role: 'A' });
-      partner.emit('paired', { role: 'B' });
+      socket.emit('paired');
+      partner.emit('paired');
 
       socket.emit('ask_question', question);
       partner.emit('ask_question', question);
@@ -38,23 +37,6 @@ io.on('connection', (socket) => {
       waitingUser = socket;
       socket.emit('waiting');
     }
-  }
-
-  // 一開始就執行配對
-  tryPairing();
-
-  socket.on('leave', () => {
-    console.log('使用者主動離開:', socket.id);
-
-    if (socket.partner) {
-      socket.partner.emit('partner_left');
-      socket.partner.partner = null;
-    }
-
-    socket.partner = null;
-    socket.answer = null;
-
-    tryPairing(); // 重新配對
   });
 
   socket.on('answer_question', (answer) => {
@@ -62,20 +44,18 @@ io.on('connection', (socket) => {
 
     const partner = socket.partner;
     if (partner && partner.answer) {
-      // 雙方都已回答
       if (partner.answer === socket.answer) {
-        socket.emit('question_matched');
-        partner.emit('question_matched');
+        socket.emit('question_matched', { partnerNickname: partner.nickname });
+        partner.emit('question_matched', { partnerNickname: socket.nickname });
       } else {
         socket.emit('question_failed');
         partner.emit('question_failed');
-        // 解除配對
+
+        // 重置配對狀態
         socket.partner = null;
         partner.partner = null;
         socket.answer = null;
         partner.answer = null;
-        tryPairing();
-        tryPairing();
       }
     }
   });
@@ -83,14 +63,13 @@ io.on('connection', (socket) => {
   socket.on('message', (msg) => {
     if (socket.partner) {
       socket.partner.emit('message', {
-        from: socket.role,
+        from: socket.nickname || '匿名',
         text: msg
       });
     }
   });
 
   socket.on('disconnect', () => {
-    console.log('使用者離線:', socket.id);
     if (socket.partner) {
       socket.partner.emit('partner_left');
       socket.partner.partner = null;
@@ -98,10 +77,18 @@ io.on('connection', (socket) => {
       waitingUser = null;
     }
   });
+
+  socket.on('leave', () => {
+    if (socket.partner) {
+      socket.partner.emit('partner_left');
+      socket.partner.partner = null;
+    }
+    socket.partner = null;
+    socket.answer = null;
+  });
 });
 
-// 啟動伺服器
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`伺服器啟動於 port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
