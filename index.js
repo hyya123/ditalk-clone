@@ -9,8 +9,8 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-let waitingUser = null;
-const question = '喜歡什麼汽車？日系 或是 美系';
+const question = '喜歡什麼汽車？日系 或 美系';
+let waitingQueue = [];
 
 io.on('connection', (socket) => {
   console.log('使用者連線:', socket.id);
@@ -20,10 +20,11 @@ io.on('connection', (socket) => {
 
   socket.on('start_pairing', ({ nickname }) => {
     socket.nickname = nickname;
+    socket.partner = null;
+    socket.answer = null;
 
-    if (waitingUser && waitingUser !== socket) {
-      const partner = waitingUser;
-      waitingUser = null;
+    if (waitingQueue.length > 0) {
+      const partner = waitingQueue.shift();
 
       socket.partner = partner;
       partner.partner = socket;
@@ -34,16 +35,16 @@ io.on('connection', (socket) => {
       socket.emit('ask_question', question);
       partner.emit('ask_question', question);
     } else {
-      waitingUser = socket;
+      waitingQueue.push(socket);
       socket.emit('waiting');
     }
   });
 
   socket.on('answer_question', (answer) => {
     socket.answer = answer;
-
     const partner = socket.partner;
-    if (partner && partner.answer) {
+
+    if (partner && partner.answer !== null) {
       if (partner.answer === socket.answer) {
         socket.emit('question_matched', { partnerNickname: partner.nickname });
         partner.emit('question_matched', { partnerNickname: socket.nickname });
@@ -51,7 +52,6 @@ io.on('connection', (socket) => {
         socket.emit('question_failed');
         partner.emit('question_failed');
 
-        // 重置配對狀態
         socket.partner = null;
         partner.partner = null;
         socket.answer = null;
@@ -60,21 +60,12 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('message', (msg) => {
+  socket.on('message', (text) => {
     if (socket.partner) {
       socket.partner.emit('message', {
         from: socket.nickname || '匿名',
-        text: msg
+        text
       });
-    }
-  });
-
-  socket.on('disconnect', () => {
-    if (socket.partner) {
-      socket.partner.emit('partner_left');
-      socket.partner.partner = null;
-    } else if (waitingUser === socket) {
-      waitingUser = null;
     }
   });
 
@@ -83,8 +74,22 @@ io.on('connection', (socket) => {
       socket.partner.emit('partner_left');
       socket.partner.partner = null;
     }
+
     socket.partner = null;
     socket.answer = null;
+
+    const idx = waitingQueue.indexOf(socket);
+    if (idx !== -1) waitingQueue.splice(idx, 1);
+  });
+
+  socket.on('disconnect', () => {
+    if (socket.partner) {
+      socket.partner.emit('partner_left');
+      socket.partner.partner = null;
+    }
+
+    const idx = waitingQueue.indexOf(socket);
+    if (idx !== -1) waitingQueue.splice(idx, 1);
   });
 });
 
