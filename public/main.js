@@ -1,7 +1,7 @@
 const socket = io();
-let userRole = null;
 
 const startBtn = document.getElementById('startBtn');
+const nicknameInput = document.getElementById('nicknameInput');
 const status = document.getElementById('status');
 const questionSection = document.getElementById('question-section');
 const questionText = document.getElementById('question-text');
@@ -13,22 +13,31 @@ const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
 
 startBtn.addEventListener('click', () => {
-  socket.emit('leave'); // 先清空舊配對
+  const nickname = nicknameInput.value.trim();
+  if (!nickname) {
+    alert('請輸入暱稱');
+    return;
+  }
+
+  socket.emit('leave'); // 離開前一組
+  socket.emit('start_pairing', { nickname });
   status.innerText = '等待配對中...';
+  messages.innerHTML = '';
+  chat.style.display = 'none';
+  questionSection.style.display = 'none';
 });
 
 socket.on('waiting', () => {
   status.innerText = '等待配對中...';
 });
 
-socket.on('paired', ({ role }) => {
-  userRole = role;
-  status.innerText = `配對成功！你是使用者${role}`;
+socket.on('paired', () => {
+  status.innerText = '配對成功，請回答問題...';
 });
 
 socket.on('ask_question', (question) => {
-  questionSection.style.display = 'block';
   questionText.innerText = question;
+  questionSection.style.display = 'block';
 });
 
 submitAnswer.addEventListener('click', () => {
@@ -41,15 +50,14 @@ submitAnswer.addEventListener('click', () => {
 });
 
 socket.on('question_matched', () => {
-  status.innerText = '回答一致，開始聊天！';
+  status.innerText = '賓果 🎉！開始聊天';
   chat.style.display = 'block';
 });
 
 socket.on('question_failed', () => {
-  alert('雙方答案不一致，配對結束！');
-  chat.style.display = 'none';
-  messages.innerHTML = '';
+  alert('雙方答案不一致，配對結束');
   status.innerText = '請重新配對';
+  chat.style.display = 'none';
 });
 
 sendBtn.addEventListener('click', () => {
@@ -62,7 +70,7 @@ sendBtn.addEventListener('click', () => {
 
 socket.on('message', ({ from, text }) => {
   const msgElem = document.createElement('div');
-  msgElem.textContent = `使用者${from}: ${text}`;
+  msgElem.textContent = `${from}: ${text}`;
   messages.appendChild(msgElem);
   messages.scrollTop = messages.scrollHeight;
 });
@@ -70,6 +78,5 @@ socket.on('message', ({ from, text }) => {
 socket.on('partner_left', () => {
   alert('對方已離線');
   chat.style.display = 'none';
-  messages.innerHTML = '';
   status.innerText = '對方離開，請重新配對';
 });
