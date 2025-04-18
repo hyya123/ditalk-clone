@@ -63,6 +63,14 @@ socket.on('question_failed', () => {
 sendBtn.addEventListener('click', () => {
   const text = messageInput.value.trim();
   if (text) {
+    const nickname = nicknameInput.value.trim() || '我'; // 如果沒有暱稱就顯示為「我」
+    
+    // 顯示自己的訊息
+    const msgElem = document.createElement('div');
+    msgElem.textContent = `${nickname}: ${text}`;
+    messages.appendChild(msgElem);
+    messages.scrollTop = messages.scrollHeight;
+
     socket.emit('message', text);
     messageInput.value = '';
   }
