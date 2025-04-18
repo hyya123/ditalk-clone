@@ -1,108 +1,33 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>匿名聊天室</title>
+  <title>DiTalk 配對聊天</title>
+  <script src="/socket.io/socket.io.js"></script>
   <style>
-    body {
-      margin: 0;
-      font-family: sans-serif;
-      background-color: #e3f2fd;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-    #messages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 1rem;
-    }
-    .message {
-      margin: 0.5rem 0;
-      padding: 0.5rem 1rem;
-      background: #bbdefb;
-      border-radius: 10px;
-      max-width: 60%;
-    }
-    .own {
-      background: #90caf9;
-      align-self: flex-end;
-    }
-    #form {
-      display: flex;
-      padding: 1rem;
-      background: #2196f3;
-    }
-    #input {
-      flex: 1;
-      padding: 0.5rem;
-      border: none;
-      border-radius: 5px;
-      margin-right: 0.5rem;
-    }
-    #send, #leave {
-      background: white;
-      border: none;
-      padding: 0.5rem 1rem;
-      border-radius: 5px;
-      cursor: pointer;
-    }
+    #chat { display: none; border: 1px solid #ccc; padding: 10px; }
+    #question-section { display: none; }
   </style>
 </head>
 <body>
-  <div id="messages"></div>
-  <form id="form">
-    <input id="input" autocomplete="off" placeholder="輸入訊息..." />
-    <button type="submit" id="send">傳送</button>
-    <button type="button" id="leave">離開</button>
-  </form>
+  <h1>配對聊天系統</h1>
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script>
-    const socket = io();
-    const form = document.getElementById('form');
-    const input = document.getElementById('input');
-    const messages = document.getElementById('messages');
-    const leave = document.getElementById('leave');
+  <button id="startBtn">開始配對</button>
+  <div id="status">尚未配對</div>
 
-    function addMessage(text, own = false) {
-      const msg = document.createElement('div');
-      msg.className = 'message' + (own ? ' own' : '');
-      msg.innerText = text;
-      messages.appendChild(msg);
-      messages.scrollTop = messages.scrollHeight;
-    }
+  <div id="question-section">
+    <p id="question-text"></p>
+    <input type="text" id="answerInput" placeholder="請輸入答案">
+    <button id="submitAnswer">送出答案</button>
+  </div>
 
-    socket.on('waiting', () => {
-      addMessage('正在等待配對中...');
-    });
+  <div id="chat">
+    <h3>聊天視窗</h3>
+    <div id="messages" style="height: 200px; overflow-y: scroll;"></div>
+    <input id="messageInput" placeholder="輸入訊息">
+    <button id="sendBtn">送出</button>
+  </div>
 
-    socket.on('paired', () => {
-      addMessage('配對成功，開始聊天吧！');
-    });
-
-    socket.on('message', (msg) => {
-      addMessage(msg);
-    });
-
-    socket.on('partner_left', () => {
-      addMessage('對方離開了，請點離開重新配對。');
-    });
-
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      if (input.value) {
-        socket.emit('message', input.value);
-        addMessage(input.value, true);
-        input.value = '';
-      }
-    });
-
-    leave.addEventListener('click', () => {
-      socket.emit('leave');
-      addMessage('你已離開聊天。正在重新配對...');
-    });
-  </script>
+  <script src="main.js"></script>
 </body>
 </html>
